@@ -71,5 +71,7 @@ PACKAGES = {
     "1year":  {"label": "1 አመት 3000", "price": 3000},
 }
 
-# Database path
+# Database configuration
 DB_PATH = "mule_vip.db"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")

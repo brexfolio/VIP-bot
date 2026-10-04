@@ -1,7 +1,7 @@
-import aiosqlite
 from aiogram import Router, F, types
 from utils.emoji import e
 import config
+from database import get_all_payments_and_total
 
 payment_info_router = Router()
 
@@ -11,12 +11,7 @@ async def show_payment_info(message: types.Message):
     if message.from_user.id != config.ADMIN_ID:
         return
 
-    async with aiosqlite.connect(config.DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM payments ORDER BY id ASC") as cur:
-            payments = [dict(r) for r in await cur.fetchall()]
-        async with db.execute("SELECT COALESCE(SUM(amount), 0) FROM payments") as cur:
-            total = float((await cur.fetchone())[0])
+    payments, total = await get_all_payments_and_total()
 
     if not payments:
         await message.answer(f"{e('bell')} እስካሁን ምንም ክፍያ አልተመዘገበም።", parse_mode="HTML")

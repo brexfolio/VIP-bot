@@ -9,8 +9,8 @@ channel_guard.py — VIP Channel Guard
 import logging
 from aiogram import Router, F, types
 from aiogram.types import ChatMemberUpdated
-import aiosqlite
 import config
+from database import is_user_vip
 from utils.emoji import e
 
 channel_guard_router = Router()
@@ -50,17 +50,10 @@ async def guard_new_member(event: ChatMemberUpdated):
 
     # ── DB ያረጋግጣ ─────────────────────────────────────────────────────────
     try:
-        async with aiosqlite.connect(config.DB_PATH) as db:
-            async with db.execute(
-                "SELECT is_vip FROM users WHERE user_id = ?", (user_id,)
-            ) as cur:
-                row = await cur.fetchone()
+        if await is_user_vip(user_id):
+            return
     except Exception as ex:
         logger.error(f"Guard DB error: {ex}")
-        return
-
-    # is_vip=1 ከሆነ → ይፈቀድ
-    if row and row[0] == 1:
         return
 
     # ── VIP አይደለም → Kick ─────────────────────────────────────────────────

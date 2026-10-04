@@ -1,10 +1,7 @@
 import asyncio
-import aiosqlite
-from aiogram import Router, F, types, Bot
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from utils.emoji import e
 import config
+from database import get_all_users
 
 post_bot_router = Router()
 
@@ -31,10 +28,7 @@ async def broadcast_to_users(message: types.Message, state: FSMContext, bot: Bot
         await message.answer(f"{e('error')} ማሰራጫው ተሰርዟል።", parse_mode="HTML")
         return
 
-    async with aiosqlite.connect("mule_vip.db") as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT user_id FROM users") as cur:
-            users = [dict(r) for r in await cur.fetchall()]
+    users = await get_all_users()
 
     sent = blocked = 0
     status = await message.answer(

@@ -3,8 +3,8 @@ from aiogram.types import (InlineKeyboardMarkup, InlineKeyboardButton,
                             ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-import aiosqlite
 import config
+from database import get_user_phone, update_user_phone
 from utils.emoji import e, e_id
 
 deposit_router = Router()
@@ -115,11 +115,9 @@ async def handle_package_selection(callback: types.CallbackQuery, state: FSMCont
     user_id     = callback.from_user.id
     await state.update_data(selected_package=package_key)
 
-    async with aiosqlite.connect(config.DB_PATH) as db:
-        async with db.execute("SELECT phone FROM users WHERE user_id=?", (user_id,)) as cur:
-            result = await cur.fetchone()
+    user_phone = await get_user_phone(user_id)
 
-    if result and result[0]:
+    if user_phone:
         await show_payment_method(callback.message, state)
     else:
         # ስልክ ቁጥር ስለሌለ — phone keyboard ብቻ (edit አይደለም)
@@ -139,10 +137,7 @@ async def handle_package_selection(callback: types.CallbackQuery, state: FSMCont
 @deposit_router.message(PaymentState.waiting_for_phone, F.contact)
 async def process_phone(message: types.Message, state: FSMContext):
     phone = message.contact.phone_number
-    async with aiosqlite.connect(config.DB_PATH) as db:
-        await db.execute("UPDATE users SET phone=? WHERE user_id=?",
-                         (phone, message.from_user.id))
-        await db.commit()
+    await update_user_phone(message.from_user.id, phone)
     await message.answer("✅ ስልክዎ ተመዝግቧል!", reply_markup=ReplyKeyboardRemove())
     # ሰሌዳ (dummy message) ፈጥሮ payment method ያሳያል
     msg = await message.answer("...")

@@ -27,3 +27,6 @@ Pillow==10.4.0
 # CBE ደረሰኝ ላይ ያለውን QR code ለማንበብ (ከOCR ይልቅ ብዙ ጊዜ ይበልጥ ትክክለኛ)
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
+
+# Supabase Client
+supabase>=2.0.0

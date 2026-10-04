@@ -1,15 +1,12 @@
 import inspect
 import logging
-import sqlite3
-
-import aiosqlite
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 import config
 import ocr_utils
-from database import activate_vip
+from database import activate_vip, get_payment_by_tid, add_payment, get_user_phone
 from handlers.user_handlers.deposit import PaymentState
 from receipt_checker import VERIFIERS
 from utils.emoji import e, e_id
@@ -31,11 +28,7 @@ async def _verify_and_finalize(message: Message, state: FSMContext,
         return
 
     # ── TID duplicate check ──────────────────────────────────────────────
-    conn = sqlite3.connect(config.DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM payments WHERE transaction_id=?", (tid,))
-    existing = cursor.fetchone()
-    conn.close()
+    existing = get_payment_by_tid(tid)
 
     if existing:
         await message.answer(
@@ -71,12 +64,8 @@ async def _verify_and_finalize(message: Message, state: FSMContext,
         )
 
     # ── Registered phone ─────────────────────────────────────────────────
-    conn = sqlite3.connect(config.DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT phone FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    registered_phone = row[0] if row else "None"
+    phone_val = await get_user_phone(user_id)
+    registered_phone = phone_val if phone_val else "None"
 
     await proc.delete()
 
@@ -101,20 +90,20 @@ async def _verify_and_finalize(message: Message, state: FSMContext,
             return
 
     # ── Save to DB ───────────────────────────────────────────────────────
-    async with aiosqlite.connect(config.DB_PATH) as db:
-        try:
-            await db.execute(
-                "INSERT INTO payments (user_id, payer_name, phone, transaction_id, amount) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (user_id, p_name, registered_phone, tid, actual_amount),
-            )
-            await db.commit()
-        except aiosqlite.IntegrityError:
-            await message.answer(
-                f"{e('error')} <b>ትራንዛክሽን ቁጥሩ አስቀድሞ ጥቅም ላይ ውሏል!</b>",
-                parse_mode="HTML",
-            )
-            return
+    saved = await add_payment(
+        user_id=user_id,
+        payer_name=p_name or "",
+        phone=registered_phone,
+        transaction_id=tid,
+        amount=actual_amount or 0.0,
+        bank=payment_method
+    )
+    if not saved:
+        await message.answer(
+            f"{e('error')} <b>ትራንዛክሽን ቁጥሩ አስቀድሞ ጥቅም ላይ ውሏል!</b>",
+            parse_mode="HTML",
+        )
+        return
 
     # ── VIP activate + unban ─────────────────────────────────────────────
     await activate_vip(user_id, package_key)
