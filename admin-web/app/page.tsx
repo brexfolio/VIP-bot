@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from './supabase';
+import { supabase } from '../lib/supabase';
 
 interface User {
   user_id: number;
@@ -25,7 +25,7 @@ interface Payment {
   created_at: string;
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboardPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,6 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | number | null>(null);
 
-  // Fetch initial data
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -45,7 +44,7 @@ export default function AdminDashboard() {
       if (usersRes.data) setUsers(usersRes.data as User[]);
       if (paymentsRes.data) setPayments(paymentsRes.data as Payment[]);
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('Error fetching data from Supabase:', err);
     } finally {
       setLoading(false);
     }
@@ -54,9 +53,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Setup Supabase Realtime channel
+    // Realtime Postgres Sync
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('schema-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
         fetchData();
       })
@@ -70,7 +69,6 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  // Metrics
   const stats = useMemo(() => {
     const totalRevenue = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
     const activeVips = users.filter(u => u.is_vip === 1).length;
@@ -91,18 +89,17 @@ export default function AdminDashboard() {
     };
   }, [payments, users]);
 
-  // Actions
   const handleToggleVip = async (user: User) => {
     setActionLoadingId(user.user_id);
     const newStatus = user.is_vip === 1 ? 0 : 1;
     const nowStr = new Date().toISOString();
     const expiryStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const updatePayload = newStatus === 1
+    const payload = newStatus === 1
       ? { is_vip: 1, start_date: nowStr, expiry_date: expiryStr }
       : { is_vip: 0 };
 
-    await supabase.from('users').update(updatePayload).eq('user_id', user.user_id);
+    await supabase.from('users').update(payload).eq('user_id', user.user_id);
     await fetchData();
     setActionLoadingId(null);
   };
@@ -138,24 +135,24 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header */}
+        {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
             <div className="flex items-center gap-3">
               <span className="text-2xl font-black bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
-                WONDE VIP
+                WONDE VIP ADMIN
               </span>
               <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Live Cloud Sync
+                Supabase Realtime
               </span>
             </div>
             <p className="text-sm text-slate-400 mt-1">
-              Real-time Telegram VIP Membership & Bank Payment Admin Control
+              Live Telegram Bot Management, Payment Verifications & Channel Memberships
             </p>
           </div>
           <button
             onClick={fetchData}
-            className="self-start md:self-auto px-4 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 transition border border-slate-700 text-slate-200"
+            className="self-start md:self-auto px-4 py-2 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 transition border border-slate-800 text-slate-200"
           >
             ↻ Refresh Data
           </button>
@@ -176,7 +173,7 @@ export default function AdminDashboard() {
             <div className="text-2xl font-bold mt-2 text-amber-400">
               {stats.activeVips} <span className="text-xs font-normal text-slate-400">Members</span>
             </div>
-            <span className="text-xs text-slate-500 mt-1 block">Full channel access</span>
+            <span className="text-xs text-slate-500 mt-1 block">Active in 49 channels</span>
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 shadow-lg">
@@ -184,15 +181,15 @@ export default function AdminDashboard() {
             <div className="text-2xl font-bold mt-2 text-rose-400">
               {stats.expiringSoon} <span className="text-xs font-normal text-slate-400">Users</span>
             </div>
-            <span className="text-xs text-slate-500 mt-1 block">Auto-kick warning stage</span>
+            <span className="text-xs text-slate-500 mt-1 block">Scheduled for auto-ban</span>
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 shadow-lg">
-            <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Total Bot Users</span>
+            <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Total Registered</span>
             <div className="text-2xl font-bold mt-2 text-sky-400">
               {stats.totalUsers}
             </div>
-            <span className="text-xs text-slate-500 mt-1 block">Registered in database</span>
+            <span className="text-xs text-slate-500 mt-1 block">All registered bot users</span>
           </div>
         </div>
 
@@ -230,11 +227,11 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {/* Table Content */}
+        {/* Tables */}
         <div className="rounded-2xl bg-slate-900/60 border border-slate-800 overflow-hidden shadow-2xl">
           {loading ? (
             <div className="p-12 text-center text-slate-500 text-sm animate-pulse">
-              Loading Supabase data...
+              Syncing with Supabase Cloud...
             </div>
           ) : activeTab === 'payments' ? (
             <div className="overflow-x-auto">
